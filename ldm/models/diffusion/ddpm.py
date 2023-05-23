@@ -1795,3 +1795,62 @@ class LatentUpscaleFinetuneDiffusion(LatentFinetuneDiffusion):
         log = super().log_images(*args, **kwargs)
         log["lr"] = rearrange(args[0]["lr"], 'b h w c -> b c h w')
         return log
+
+class LatentDiffusionInversion(LatentDiffusion):
+    """main class with embedding manager from textural inversion"""
+
+    def __init__(self,
+                 first_stage_config,
+                 cond_stage_config,
+                 personalization_config,
+                 num_timesteps_cond=None,
+                 cond_stage_key="image",
+                 cond_stage_trainable=False,
+                 concat_mode=True,
+                 cond_stage_forward=None,
+                 conditioning_key=None,
+                 scale_factor=1.0,
+                 scale_by_std=False,
+                 force_null_conditioning=False,
+                 *args, **kwargs):
+        
+        super().__init__(
+                 first_stage_config,
+                 cond_stage_config,
+                 num_timesteps_cond=num_timesteps_cond,
+                 cond_stage_key=cond_stage_key,
+                 cond_stage_trainable=cond_stage_trainable,
+                 concat_mode=concat_mode,
+                 cond_stage_forward=cond_stage_forward,
+                 conditioning_key=conditioning_key,
+                 scale_factor=scale_factor,
+                 scale_by_std=scale_by_std,
+                 force_null_conditioning=force_null_conditioning,
+                 *args, **kwargs)
+
+
+        self.embedding_manager = self.instantiate_embedding_manager(personalization_config, self.cond_stage_model)
+
+        for param in self.embedding_manager.embedding_parameters():
+            param.requires_grad = True
+
+    def get_learned_conditioning(self, c):
+        if self.cond_stage_forward is None:
+            if hasattr(self.cond_stage_model, 'encode') and callable(self.cond_stage_model.encode):
+                c = self.cond_stage_model.encode(c, embedding_manager=self.embedding_manager)
+                if isinstance(c, DiagonalGaussianDistribution):
+                    c = c.mode()
+            else:
+                c = self.cond_stage_model(c)
+        else:
+            assert hasattr(self.cond_stage_model, self.cond_stage_forward)
+            c = getattr(self.cond_stage_model, self.cond_stage_forward)(c)
+        return c
+
+    def instantiate_embedding_manager(self, config, embedder):
+        model = instantiate_from_config(config, embedder=embedder)
+
+        if config.params.get("embedding_manager_ckpt", None): # do not load if missing OR empty string
+            model.load(config.params.embedding_manager_ckpt)
+        
+        return model

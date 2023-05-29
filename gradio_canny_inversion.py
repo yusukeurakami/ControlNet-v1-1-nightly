@@ -19,7 +19,8 @@ preprocessor = None
 
 model_name = 'control_v11p_sd15_canny'
 model = create_model(f'./models/{model_name}_inversion.yaml').cpu()
-model.load_state_dict(load_state_dict('./models/v1-5-pruned.ckpt', location='cuda'), strict=False)
+# model.load_state_dict(load_state_dict('./models/v1-5-pruned.ckpt', location='cuda'), strict=False)
+model.load_state_dict(load_state_dict('./models/sd-v1-4.ckpt', location='cuda'), strict=False)
 model.load_state_dict(load_state_dict(f'./models/{model_name}.pth', location='cuda'), strict=False)
 embedding_path = '/home/urakamiy/repos/ControlNet-v1-1-nightly/models/inversion/embeddings_gs-64999.pt'
 model.embedding_manager.load(embedding_path)
